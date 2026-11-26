@@ -1,0 +1,1682 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wave Mathematics Lab</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 18px;
+    background: #101827;
+    color: #f1f5f9;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 1100px;
+    margin: auto;
+}
+
+h1 {
+    text-align: center;
+    color: #38bdf8;
+}
+
+.subtitle {
+    text-align: center;
+    color: #aabbd0;
+}
+
+.panel {
+    background: #1e293b;
+    padding: 18px;
+    border-radius: 14px;
+    margin: 16px 0;
+}
+
+.inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 12px;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    color: #cbd5e1;
+}
+
+input, select {
+    width: 100%;
+    padding: 11px;
+    border-radius: 7px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: white;
+    font-size: 15px;
+}
+
+button {
+    padding: 12px 17px;
+    margin: 8px 5px 0 0;
+    border: none;
+    border-radius: 8px;
+    background: #0284c7;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button.random {
+    background: #7c3aed;
+}
+
+button:hover {
+    opacity: 0.85;
+}
+
+#graph {
+    width: 100%;
+    height: 440px;
+    display: block;
+    background: #08111f;
+    border-radius: 12px;
+    touch-action: none;
+}
+
+.results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.result {
+    background: #0f172a;
+    padding: 14px;
+    border-radius: 9px;
+}
+
+.result small {
+    color: #94a3b8;
+}
+
+.result strong {
+    display: block;
+    margin-top: 7px;
+    color: #38bdf8;
+    font-size: 19px;
+    overflow-wrap: anywhere;
+}
+
+.note {
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.5;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Wave Mathematics Lab</h1>
+<p class="subtitle">
+Physical measurements → Mathematics → 3D Wave Visualization
+</p>
+
+<div class="panel">
+    <h2>Wave Parameters</h2>
+
+    <div class="inputs">
+
+        <div>
+            <label for="amplitude">Amplitude (m)</label>
+            <input id="amplitude" type="number" value="10" min="0.1" step="any">
+        </div>
+
+        <div>
+            <label for="frequency">Frequency (Hz)</label>
+            <input id="frequency" type="number" value="0.1" min="0.001" step="any">
+        </div>
+
+        <div>
+            <label for="speed">Wave Speed (m/s)</label>
+            <input id="speed" type="number" value="10" min="0.001" step="any">
+        </div>
+
+        <div>
+            <label for="direction">Direction</label>
+            <select id="direction">
+                <option value="0">East</option>
+                <option value="45">Northeast</option>
+                <option value="90" selected>North</option>
+                <option value="135">Northwest</option>
+                <option value="180">West</option>
+                <option value="225">Southwest</option>
+                <option value="270">South</option>
+                <option value="315">Southeast</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="time">Time (seconds)</label>
+            <input id="time" type="number" value="0" step="any">
+        </div>
+
+        <div>
+            <label for="distance">Distance (m)</label>
+            <input id="distance" type="number" value="20" step="any">
+        </div>
+
+    </div>
+
+    <button id="calculate">Calculate + Generate Graph</button>
+    <button class="random" id="random">Random Generate</button>
+    <button id="reset">Reset</button>
+</div>
+
+<div class="panel">
+    <h2>Interactive 3D Wave</h2>
+    <canvas id="graph"></canvas>
+    <p class="note">
+        Drag to rotate the graph. Use the mouse wheel or pinch gesture to zoom.
+        The graph uses a fixed horizontal distance scale so changes in
+        wavelength remain visible.
+    </p>
+</div>
+
+<div class="panel">
+    <h2>Mathematical Results</h2>
+
+    <div class="results">
+        <div class="result">
+            <small>Wavelength (λ)</small>
+            <strong id="wavelength">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Wave Number (k)</small>
+            <strong id="waveNumber">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Angular Frequency (ω)</small>
+            <strong id="angularFrequency">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Displacement (z)</small>
+            <strong id="displacement">—</strong>
+        </div>
+    </div>
+
+    <p id="equation"></p>
+</div>
+
+</div>
+
+<script>
+const canvas = document.getElementById("graph");
+const ctx = canvas.getContext("2d");
+
+const $ = id => document.getElementById(id);
+
+let wave = {};
+let rotation = -0.65;
+let tilt = 0.85;
+let zoom = 1;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
+let previousRandom = "";
+
+const DEG = Math.PI / 180;
+
+function getInputs() {
+    const A = Number($("amplitude").value);
+    const f = Number($("frequency").value);
+    const v = Number($("speed").value);
+    const theta = Number($("direction").value);
+    const t = Number($("time").value);
+    const distance = Number($("distance").value);
+
+    if (
+        !Number.isFinite(A) || A <= 0 ||
+        !Number.isFinite(f) || f <= 0 ||
+        !Number.isFinite(v) || v <= 0 ||
+        !Number.isFinite(theta) ||
+        !Number.isFinite(t) ||
+        !Number.isFinite(distance)
+    ) {
+        alert("Enter valid positive amplitude, frequency and speed values.");
+        return null;
+    }
+
+    return { A, f, v, theta, t, distance };
+}
+
+function calculate() {
+    const p = getInputs();
+    if (!p) return;
+
+    const wavelength = p.v / p.f;
+    const k = 2 * Math.PI / wavelength;
+    const omega = 2 * Math.PI * p.f;
+    const angle = p.theta * DEG;
+
+    const d = p.distance;
+
+    const z = p.A * Math.sin(k * d - omega * p.t);
+
+    wave = {
+        ...p,
+        wavelength,
+        k,
+        omega,
+        angle
+    };
+
+    $("wavelength").textContent = wavelength.toFixed(3) + " m";
+    $("waveNumber").textContent = k.toFixed(5) + " rad/m";
+    $("angularFrequency").textContent = omega.toFixed(5) + " rad/s";
+    $("displacement").textContent = z.toFixed(3) + " m";
+
+    $("equation").textContent =
+        "z = " + p.A + " sin(" +
+        k.toFixed(4) + "d − " +
+        omega.toFixed(4) + "t)";
+
+    draw();
+}
+
+function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (wave.A) draw();
+}
+
+function project(x, y, z) {
+    const c = Math.cos(rotation);
+    const s = Math.sin(rotation);
+
+    const xr = x * c - y * s;
+    const yr = x * s + y * c;
+
+    const ct = Math.cos(tilt);
+    const st = Math.sin(tilt);
+
+    const vertical = yr * ct - z * st;
+    const depth = yr * st + z * ct;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    const scale = Math.min(width, height) * 0.00165 * zoom;
+
+    return {
+        x: width / 2 + xr * scale,
+        y: height / 2 + vertical * scale,
+        depth
+    };
+}
+
+function waveHeight(x, y) {
+    const d = x * Math.cos(wave.angle) +
+              y * Math.sin(wave.angle);
+
+    return wave.A * Math.sin(
+        wave.k * d - wave.omega * wave.t
+    );
+}
+
+function draw() {
+    if (!wave.A) return;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = "#08111f";
+    ctx.fillRect(0, 0, width, height);
+
+    // Fixed physical viewing area: frequency changes
+    // produce visible changes in the number of wave cycles.
+    const span = 200;
+    const steps = 44;
+    const spacing = span / steps;
+
+    let points = [];
+
+    for (let j = 0; j <= steps; j++) {
+        const row = [];
+
+        for (let i = 0; i <= steps; i++) {
+            const x = (i - steps / 2) * spacing;
+            const y = (j - steps / 2) * spacing;
+            const z = waveHeight(x, y);
+
+            row.push({
+                x, y, z,
+                screen: project(x, y, z)
+            });
+        }
+
+        points.push(row);
+    }
+
+    // Draw filled surface cells.
+    for (let j = 0; j < steps; j++) {
+        for (let i = 0; i < steps; i++) {
+            const a = points[j][i];
+            const b = points[j][i + 1];
+            const c = points[j + 1][i + 1];
+            const d = points[j + 1][i];
+
+            const avg = (a.z + b.z + c.z + d.z) / 4;
+            const intensity = Math.max(
+                0,
+                Math.min(1, 0.5 + avg / (2 * wave.A))
+            );
+
+            const red = Math.round(20 + intensity * 25);
+            const green = Math.round(80 + intensity * 120);
+            const blue = Math.round(130 + intensity * 115);
+
+            ctx.beginPath();
+            ctx.moveTo(a.screen.x, a.screen.y);
+            ctx.lineTo(b.screen.x, b.screen.y);
+            ctx.lineTo(c.screen.x, c.screen.y);
+            ctx.lineTo(d.screen.x, d.screen.y);
+            ctx.closePath();
+
+            ctx.fillStyle = `rgb(${red},${green},${blue})`;
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(180,220,255,0.17)";
+            ctx.lineWidth = 0.55;
+            ctx.stroke();
+        }
+    }
+
+    drawDirectionArrow();
+
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "13px Arial";
+    ctx.fillText(
+        "Amplitude: " + wave.A + " m",
+        12, 22
+    );
+    ctx.fillText(
+        "Wavelength: " + wave.wavelength.toFixed(2) + " m",
+        12, 42
+    );
+    ctx.fillText(
+        "Direction: " + wave.theta + "°",
+        12, 62
+    );
+    ctx.fillText(
+        "Time: " + wave.t + " s",
+        12, 82
+    );
+}
+
+function drawDirectionArrow() {
+    const center = project(0, 0, 0);
+
+    const length = 75;
+    const end = project(
+        length * Math.cos(wave.angle),
+        length * Math.sin(wave.angle),
+        0
+    );
+
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(end.x, end.y);
+
+    ctx.strokeStyle = "#facc15";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#facc15";
+    ctx.fill();
+}
+
+function randomBetween(min, max, decimals = 2) {
+    return Number(
+        (min + Math.random() * (max - min)).toFixed(decimals)
+    );
+}
+
+function randomGenerate() {
+    let values;
+    let signature;
+
+    // Avoid accidentally repeating the exact same set.
+    do {
+        values = {
+            A: randomBetween(5, 50),
+            f: randomBetween(0.03, 0.30, 3),
+            v: randomBetween(3, 20),
+            theta: [0, 45, 90, 135, 180, 225, 270, 315]
+                [Math.floor(Math.random() * 8)],
+            t: randomBetween(0, 30),
+            distance: randomBetween(5, 100)
+        };
+
+        signature = JSON.stringify(values);
+    } while (signature === previousRandom);
+
+    previousRandom = signature;
+
+    $("amplitude").value = values.A;
+    $("frequency").value = values.f;
+    $("speed").value = values.v;
+    $("direction").value = values.theta;
+    $("time").value = values.t;
+    $("distance").value = values.distance;
+
+    calculate();
+}
+
+function reset() {
+    $("amplitude").value = 10;
+    $("frequency").value = 0.1;
+    $("speed").value = 10;
+    $("direction").value = 90;
+    $("time").value = 0;
+    $("distance").value = 20;
+
+    rotation = -0.65;
+    tilt = 0.85;
+    zoom = 1;
+
+    calculate();
+}
+
+// Mouse and touch rotation.
+canvas.addEventListener("pointerdown", event => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+});
+
+canvas.addEventListener("pointermove", event => {
+    if (!dragging) return;
+
+    const dx = event.clientX - lastX;
+    const dy = event.clientY - lastY;
+
+    rotation += dx * 0.008;
+    tilt = Math.max(0.15, Math.min(1.45, tilt + dy * 0.005));
+
+    lastX = event.clientX;
+    lastY = event.clientY;
+
+    draw();
+});
+
+canvas.addEventListener("pointerup", () => {
+    dragging = false;
+});
+
+canvas.addEventListener("pointercancel", () => {
+    dragging = false;
+});
+
+canvas.addEventListener("wheel", event => {
+    event.preventDefault();
+    zoom *= event.deltaY < 0 ? 1.1 : 0.9;
+    zoom = Math.max(0.4, Math.min(3, zoom));
+    draw();
+}, { passive: false });
+
+$("calculate").addEventListener("click", calculate);
+$("random").addEventListener("click", randomGenerate);
+$("reset").addEventListener("click", reset);
+
+window.addEventListener("resize", resizeCanvas);
+
+resizeCanvas();
+calculate();
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wave Mathematics Lab</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 18px;
+    background: #101827;
+    color: #f1f5f9;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 1100px;
+    margin: auto;
+}
+
+h1 {
+    text-align: center;
+    color: #38bdf8;
+}
+
+.subtitle {
+    text-align: center;
+    color: #aabbd0;
+}
+
+.panel {
+    background: #1e293b;
+    padding: 18px;
+    border-radius: 14px;
+    margin: 16px 0;
+}
+
+.inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 12px;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    color: #cbd5e1;
+}
+
+input, select {
+    width: 100%;
+    padding: 11px;
+    border-radius: 7px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: white;
+    font-size: 15px;
+}
+
+button {
+    padding: 12px 17px;
+    margin: 8px 5px 0 0;
+    border: none;
+    border-radius: 8px;
+    background: #0284c7;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button.random {
+    background: #7c3aed;
+}
+
+button:hover {
+    opacity: 0.85;
+}
+
+#graph {
+    width: 100%;
+    height: 440px;
+    display: block;
+    background: #08111f;
+    border-radius: 12px;
+    touch-action: none;
+}
+
+.results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.result {
+    background: #0f172a;
+    padding: 14px;
+    border-radius: 9px;
+}
+
+.result small {
+    color: #94a3b8;
+}
+
+.result strong {
+    display: block;
+    margin-top: 7px;
+    color: #38bdf8;
+    font-size: 19px;
+    overflow-wrap: anywhere;
+}
+
+.note {
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.5;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Wave Mathematics Lab</h1>
+<p class="subtitle">
+Physical measurements → Mathematics → 3D Wave Visualization
+</p>
+
+<div class="panel">
+    <h2>Wave Parameters</h2>
+
+    <div class="inputs">
+
+        <div>
+            <label for="amplitude">Amplitude (m)</label>
+            <input id="amplitude" type="number" value="10" min="0.1" step="any">
+        </div>
+
+        <div>
+            <label for="frequency">Frequency (Hz)</label>
+            <input id="frequency" type="number" value="0.1" min="0.001" step="any">
+        </div>
+
+        <div>
+            <label for="speed">Wave Speed (m/s)</label>
+            <input id="speed" type="number" value="10" min="0.001" step="any">
+        </div>
+
+        <div>
+            <label for="direction">Direction</label>
+            <select id="direction">
+                <option value="0">East</option>
+                <option value="45">Northeast</option>
+                <option value="90" selected>North</option>
+                <option value="135">Northwest</option>
+                <option value="180">West</option>
+                <option value="225">Southwest</option>
+                <option value="270">South</option>
+                <option value="315">Southeast</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="time">Time (seconds)</label>
+            <input id="time" type="number" value="0" step="any">
+        </div>
+
+        <div>
+            <label for="distance">Distance (m)</label>
+            <input id="distance" type="number" value="20" step="any">
+        </div>
+
+    </div>
+
+    <button id="calculate">Calculate + Generate Graph</button>
+    <button class="random" id="random">Random Generate</button>
+    <button id="reset">Reset</button>
+</div>
+
+<div class="panel">
+    <h2>Interactive 3D Wave</h2>
+    <canvas id="graph"></canvas>
+    <p class="note">
+        Drag to rotate the graph. Use the mouse wheel or pinch gesture to zoom.
+        The graph uses a fixed horizontal distance scale so changes in
+        wavelength remain visible.
+    </p>
+</div>
+
+<div class="panel">
+    <h2>Mathematical Results</h2>
+
+    <div class="results">
+        <div class="result">
+            <small>Wavelength (λ)</small>
+            <strong id="wavelength">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Wave Number (k)</small>
+            <strong id="waveNumber">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Angular Frequency (ω)</small>
+            <strong id="angularFrequency">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Displacement (z)</small>
+            <strong id="displacement">—</strong>
+        </div>
+    </div>
+
+    <p id="equation"></p>
+</div>
+
+</div>
+
+<script>
+const canvas = document.getElementById("graph");
+const ctx = canvas.getContext("2d");
+
+const $ = id => document.getElementById(id);
+
+let wave = {};
+let rotation = -0.65;
+let tilt = 0.85;
+let zoom = 1;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
+let previousRandom = "";
+
+const DEG = Math.PI / 180;
+
+function getInputs() {
+    const A = Number($("amplitude").value);
+    const f = Number($("frequency").value);
+    const v = Number($("speed").value);
+    const theta = Number($("direction").value);
+    const t = Number($("time").value);
+    const distance = Number($("distance").value);
+
+    if (
+        !Number.isFinite(A) || A <= 0 ||
+        !Number.isFinite(f) || f <= 0 ||
+        !Number.isFinite(v) || v <= 0 ||
+        !Number.isFinite(theta) ||
+        !Number.isFinite(t) ||
+        !Number.isFinite(distance)
+    ) {
+        alert("Enter valid positive amplitude, frequency and speed values.");
+        return null;
+    }
+
+    return { A, f, v, theta, t, distance };
+}
+
+function calculate() {
+    const p = getInputs();
+    if (!p) return;
+
+    const wavelength = p.v / p.f;
+    const k = 2 * Math.PI / wavelength;
+    const omega = 2 * Math.PI * p.f;
+    const angle = p.theta * DEG;
+
+    const d = p.distance;
+
+    const z = p.A * Math.sin(k * d - omega * p.t);
+
+    wave = {
+        ...p,
+        wavelength,
+        k,
+        omega,
+        angle
+    };
+
+    $("wavelength").textContent = wavelength.toFixed(3) + " m";
+    $("waveNumber").textContent = k.toFixed(5) + " rad/m";
+    $("angularFrequency").textContent = omega.toFixed(5) + " rad/s";
+    $("displacement").textContent = z.toFixed(3) + " m";
+
+    $("equation").textContent =
+        "z = " + p.A + " sin(" +
+        k.toFixed(4) + "d − " +
+        omega.toFixed(4) + "t)";
+
+    draw();
+}
+
+function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (wave.A) draw();
+}
+
+function project(x, y, z) {
+    const c = Math.cos(rotation);
+    const s = Math.sin(rotation);
+
+    const xr = x * c - y * s;
+    const yr = x * s + y * c;
+
+    const ct = Math.cos(tilt);
+    const st = Math.sin(tilt);
+
+    const vertical = yr * ct - z * st;
+    const depth = yr * st + z * ct;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    const scale = Math.min(width, height) * 0.00165 * zoom;
+
+    return {
+        x: width / 2 + xr * scale,
+        y: height / 2 + vertical * scale,
+        depth
+    };
+}
+
+function waveHeight(x, y) {
+    const d = x * Math.cos(wave.angle) +
+              y * Math.sin(wave.angle);
+
+    return wave.A * Math.sin(
+        wave.k * d - wave.omega * wave.t
+    );
+}
+
+function draw() {
+    if (!wave.A) return;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = "#08111f";
+    ctx.fillRect(0, 0, width, height);
+
+    // Fixed physical viewing area: frequency changes
+    // produce visible changes in the number of wave cycles.
+    const span = 200;
+    const steps = 44;
+    const spacing = span / steps;
+
+    let points = [];
+
+    for (let j = 0; j <= steps; j++) {
+        const row = [];
+
+        for (let i = 0; i <= steps; i++) {
+            const x = (i - steps / 2) * spacing;
+            const y = (j - steps / 2) * spacing;
+            const z = waveHeight(x, y);
+
+            row.push({
+                x, y, z,
+                screen: project(x, y, z)
+            });
+        }
+
+        points.push(row);
+    }
+
+    // Draw filled surface cells.
+    for (let j = 0; j < steps; j++) {
+        for (let i = 0; i < steps; i++) {
+            const a = points[j][i];
+            const b = points[j][i + 1];
+            const c = points[j + 1][i + 1];
+            const d = points[j + 1][i];
+
+            const avg = (a.z + b.z + c.z + d.z) / 4;
+            const intensity = Math.max(
+                0,
+                Math.min(1, 0.5 + avg / (2 * wave.A))
+            );
+
+            const red = Math.round(20 + intensity * 25);
+            const green = Math.round(80 + intensity * 120);
+            const blue = Math.round(130 + intensity * 115);
+
+            ctx.beginPath();
+            ctx.moveTo(a.screen.x, a.screen.y);
+            ctx.lineTo(b.screen.x, b.screen.y);
+            ctx.lineTo(c.screen.x, c.screen.y);
+            ctx.lineTo(d.screen.x, d.screen.y);
+            ctx.closePath();
+
+            ctx.fillStyle = `rgb(${red},${green},${blue})`;
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(180,220,255,0.17)";
+            ctx.lineWidth = 0.55;
+            ctx.stroke();
+        }
+    }
+
+    drawDirectionArrow();
+
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "13px Arial";
+    ctx.fillText(
+        "Amplitude: " + wave.A + " m",
+        12, 22
+    );
+    ctx.fillText(
+        "Wavelength: " + wave.wavelength.toFixed(2) + " m",
+        12, 42
+    );
+    ctx.fillText(
+        "Direction: " + wave.theta + "°",
+        12, 62
+    );
+    ctx.fillText(
+        "Time: " + wave.t + " s",
+        12, 82
+    );
+}
+
+function drawDirectionArrow() {
+    const center = project(0, 0, 0);
+
+    const length = 75;
+    const end = project(
+        length * Math.cos(wave.angle),
+        length * Math.sin(wave.angle),
+        0
+    );
+
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(end.x, end.y);
+
+    ctx.strokeStyle = "#facc15";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#facc15";
+    ctx.fill();
+}
+
+function randomBetween(min, max, decimals = 2) {
+    return Number(
+        (min + Math.random() * (max - min)).toFixed(decimals)
+    );
+}
+
+function randomGenerate() {
+    let values;
+    let signature;
+
+    // Avoid accidentally repeating the exact same set.
+    do {
+        values = {
+            A: randomBetween(5, 50),
+            f: randomBetween(0.03, 0.30, 3),
+            v: randomBetween(3, 20),
+            theta: [0, 45, 90, 135, 180, 225, 270, 315]
+                [Math.floor(Math.random() * 8)],
+            t: randomBetween(0, 30),
+            distance: randomBetween(5, 100)
+        };
+
+        signature = JSON.stringify(values);
+    } while (signature === previousRandom);
+
+    previousRandom = signature;
+
+    $("amplitude").value = values.A;
+    $("frequency").value = values.f;
+    $("speed").value = values.v;
+    $("direction").value = values.theta;
+    $("time").value = values.t;
+    $("distance").value = values.distance;
+
+    calculate();
+}
+
+function reset() {
+    $("amplitude").value = 10;
+    $("frequency").value = 0.1;
+    $("speed").value = 10;
+    $("direction").value = 90;
+    $("time").value = 0;
+    $("distance").value = 20;
+
+    rotation = -0.65;
+    tilt = 0.85;
+    zoom = 1;
+
+    calculate();
+}
+
+// Mouse and touch rotation.
+canvas.addEventListener("pointerdown", event => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+});
+
+canvas.addEventListener("pointermove", event => {
+    if (!dragging) return;
+
+    const dx = event.clientX - lastX;
+    const dy = event.clientY - lastY;
+
+    rotation += dx * 0.008;
+    tilt = Math.max(0.15, Math.min(1.45, tilt + dy * 0.005));
+
+    lastX = event.clientX;
+    lastY = event.clientY;
+
+  
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wave Mathematics Lab</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 18px;
+    background: #101827;
+    color: #f1f5f9;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 1100px;
+    margin: auto;
+}
+
+h1 {
+    text-align: center;
+    color: #38bdf8;
+}
+
+.subtitle {
+    text-align: center;
+    color: #aabbd0;
+}
+
+.panel {
+    background: #1e293b;
+    padding: 18px;
+    border-radius: 14px;
+    margin: 16px 0;
+}
+
+.inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 12px;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    color: #cbd5e1;
+}
+
+input, select {
+    width: 100%;
+    padding: 11px;
+    border-radius: 7px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: white;
+    font-size: 15px;
+}
+
+button {
+    padding: 12px 17px;
+    margin: 8px 5px 0 0;
+    border: none;
+    border-radius: 8px;
+    background: #0284c7;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button.random {
+    background: #7c3aed;
+}
+
+button:hover {
+    opacity: 0.85;
+}
+
+#graph {
+    width: 100%;
+    height: 440px;
+    display: block;
+    background: #08111f;
+    border-radius: 12px;
+    touch-action: none;
+}
+
+.results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.result {
+    background: #0f172a;
+    padding: 14px;
+    border-radius: 9px;
+}
+
+.result small {
+    color: #94a3b8;
+}
+
+.result strong {
+    display: block;
+    margin-top: 7px;
+    color: #38bdf8;
+    font-size: 19px;
+    overflow-wrap: anywhere;
+}
+
+.note {
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.5;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Wave Mathematics Lab</h1>
+<p class="subtitle">
+Physical measurements → Mathematics → 3D Wave Visualization
+</p>
+
+<div class="panel">
+    <h2>Wave Parameters</h2>
+
+    <div class="inputs">
+
+        <div>
+            <label for="amplitude">Amplitude (m)</label>
+            <input id="amplitude" type="number" value="10" min="0.1" step="any">
+        </div>
+
+        <div>
+            <label for="frequency">Frequency (Hz)</label>
+            <input id="frequency" type="number" value="0.1" min="0.001" step="any">
+        </div>
+
+        <div>
+            <label for="speed">Wave Speed (m/s)</label>
+            <input id="speed" type="number" value="10" min="0.001" step="any">
+        </div>
+
+        <div>
+            <label for="direction">Direction</label>
+            <select id="direction">
+                <option value="0">East</option>
+                <option value="45">Northeast</option>
+                <option value="90" selected>North</option>
+                <option value="135">Northwest</option>
+                <option value="180">West</option>
+                <option value="225">Southwest</option>
+                <option value="270">South</option>
+                <option value="315">Southeast</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="time">Time (seconds)</label>
+            <input id="time" type="number" value="0" step="any">
+        </div>
+
+        <div>
+            <label for="distance">Distance (m)</label>
+            <input id="distance" type="number" value="20" step="any">
+        </div>
+
+    </div>
+
+    <button id="calculate">Calculate + Generate Graph</button>
+    <button class="random" id="random">Random Generate</button>
+    <button id="reset">Reset</button>
+</div>
+
+<div class="panel">
+    <h2>Interactive 3D Wave</h2>
+    <canvas id="graph"></canvas>
+    <p class="note">
+        Drag to rotate the graph. Use the mouse wheel or pinch gesture to zoom.
+        The graph uses a fixed horizontal distance scale so changes in
+        wavelength remain visible.
+    </p>
+</div>
+
+<div class="panel">
+    <h2>Mathematical Results</h2>
+
+    <div class="results">
+        <div class="result">
+            <small>Wavelength (λ)</small>
+            <strong id="wavelength">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Wave Number (k)</small>
+            <strong id="waveNumber">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Angular Frequency (ω)</small>
+            <strong id="angularFrequency">—</strong>
+        </div>
+
+        <div class="result">
+            <small>Displacement (z)</small>
+            <strong id="displacement">—</strong>
+        </div>
+    </div>
+
+    <p id="equation"></p>
+</div>
+
+</div>
+
+<script>
+const canvas = document.getElementById("graph");
+const ctx = canvas.getContext("2d");
+
+const $ = id => document.getElementById(id);
+
+let wave = {};
+let rotation = -0.65;
+let tilt = 0.85;
+let zoom = 1;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
+let previousRandom = "";
+
+const DEG = Math.PI / 180;
+
+function getInputs() {
+    const A = Number($("amplitude").value);
+    const f = Number($("frequency").value);
+    const v = Number($("speed").value);
+    const theta = Number($("direction").value);
+    const t = Number($("time").value);
+    const distance = Number($("distance").value);
+
+    if (
+        !Number.isFinite(A) || A <= 0 ||
+        !Number.isFinite(f) || f <= 0 ||
+        !Number.isFinite(v) || v <= 0 ||
+        !Number.isFinite(theta) ||
+        !Number.isFinite(t) ||
+        !Number.isFinite(distance)
+    ) {
+        alert("Enter valid positive amplitude, frequency and speed values.");
+        return null;
+    }
+
+    return { A, f, v, theta, t, distance };
+}
+
+function calculate() {
+    const p = getInputs();
+    if (!p) return;
+
+    const wavelength = p.v / p.f;
+    const k = 2 * Math.PI / wavelength;
+    const omega = 2 * Math.PI * p.f;
+    const angle = p.theta * DEG;
+
+    const d = p.distance;
+
+    const z = p.A * Math.sin(k * d - omega * p.t);
+
+    wave = {
+        ...p,
+        wavelength,
+        k,
+        omega,
+        angle
+    };
+
+    $("wavelength").textContent = wavelength.toFixed(3) + " m";
+    $("waveNumber").textContent = k.toFixed(5) + " rad/m";
+    $("angularFrequency").textContent = omega.toFixed(5) + " rad/s";
+    $("displacement").textContent = z.toFixed(3) + " m";
+
+    $("equation").textContent =
+        "z = " + p.A + " sin(" +
+        k.toFixed(4) + "d − " +
+        omega.toFixed(4) + "t)";
+
+    draw();
+}
+
+function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (wave.A) draw();
+}
+
+function project(x, y, z) {
+    const c = Math.cos(rotation);
+    const s = Math.sin(rotation);
+
+    const xr = x * c - y * s;
+    const yr = x * s + y * c;
+
+    const ct = Math.cos(tilt);
+    const st = Math.sin(tilt);
+
+    const vertical = yr * ct - z * st;
+    const depth = yr * st + z * ct;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    const scale = Math.min(width, height) * 0.00165 * zoom;
+
+    return {
+        x: width / 2 + xr * scale,
+        y: height / 2 + vertical * scale,
+        depth
+    };
+}
+
+function waveHeight(x, y) {
+    const d = x * Math.cos(wave.angle) +
+              y * Math.sin(wave.angle);
+
+    return wave.A * Math.sin(
+        wave.k * d - wave.omega * wave.t
+    );
+}
+
+function draw() {
+    if (!wave.A) return;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = "#08111f";
+    ctx.fillRect(0, 0, width, height);
+
+    // Fixed physical viewing area: frequency changes
+    // produce visible changes in the number of wave cycles.
+    const span = 200;
+    const steps = 44;
+    const spacing = span / steps;
+
+    let points = [];
+
+    for (let j = 0; j <= steps; j++) {
+        const row = [];
+
+        for (let i = 0; i <= steps; i++) {
+            const x = (i - steps / 2) * spacing;
+            const y = (j - steps / 2) * spacing;
+            const z = waveHeight(x, y);
+
+            row.push({
+                x, y, z,
+                screen: project(x, y, z)
+            });
+        }
+
+        points.push(row);
+    }
+
+    // Draw filled surface cells.
+    for (let j = 0; j < steps; j++) {
+        for (let i = 0; i < steps; i++) {
+            const a = points[j][i];
+            const b = points[j][i + 1];
+            const c = points[j + 1][i + 1];
+            const d = points[j + 1][i];
+
+            const avg = (a.z + b.z + c.z + d.z) / 4;
+            const intensity = Math.max(
+                0,
+                Math.min(1, 0.5 + avg / (2 * wave.A))
+            );
+
+            const red = Math.round(20 + intensity * 25);
+            const green = Math.round(80 + intensity * 120);
+            const blue = Math.round(130 + intensity * 115);
+
+            ctx.beginPath();
+            ctx.moveTo(a.screen.x, a.screen.y);
+            ctx.lineTo(b.screen.x, b.screen.y);
+            ctx.lineTo(c.screen.x, c.screen.y);
+            ctx.lineTo(d.screen.x, d.screen.y);
+            ctx.closePath();
+
+            ctx.fillStyle = `rgb(${red},${green},${blue})`;
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(180,220,255,0.17)";
+            ctx.lineWidth = 0.55;
+            ctx.stroke();
+        }
+    }
+
+    drawDirectionArrow();
+
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "13px Arial";
+    ctx.fillText(
+        "Amplitude: " + wave.A + " m",
+        12, 22
+    );
+    ctx.fillText(
+        "Wavelength: " + wave.wavelength.toFixed(2) + " m",
+        12, 42
+    );
+    ctx.fillText(
+        "Direction: " + wave.theta + "°",
+        12, 62
+    );
+    ctx.fillText(
+        "Time: " + wave.t + " s",
+        12, 82
+    );
+}
+
+function drawDirectionArrow() {
+    const center = project(0, 0, 0);
+
+    const length = 75;
+    const end = project(
+        length * Math.cos(wave.angle),
+        length * Math.sin(wave.angle),
+        0
+    );
+
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(end.x, end.y);
+
+    ctx.strokeStyle = "#facc15";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#facc15";
+    ctx.fill();
+}
+
+function randomBetween(min, max, decimals = 2) {
+    return Number(
+        (min + Math.random() * (max - min)).toFixed(decimals)
+    );
+}
+
+function randomGenerate() {
+    let values;
+    let signature;
+
+    // Avoid accidentally repeating the exact same set.
+    do {
+        values = {
+            A: randomBetween(5, 50),
+            f: randomBetween(0.03, 0.30, 3),
+            v: randomBetween(3, 20),
+            theta: [0, 45, 90, 135, 180, 225, 270, 315]
+                [Math.floor(Math.random() * 8)],
+            t: randomBetween(0, 30),
+            distance: randomBetween(5, 100)
+        };
+
+        signature = JSON.stringify(values);
+    } while (signature === previousRandom);
+
+    previousRandom = signature;
+
+    $("amplitude").value = values.A;
+    $("frequency").value = values.f;
+    $("speed").value = values.v;
+    $("direction").value = values.theta;
+    $("time").value = values.t;
+    $("distance").value = values.distance;
+
+    calculate();
+}
+
+function reset() {
+    $("amplitude").value = 10;
+    $("frequency").value = 0.1;
+    $("speed").value = 10;
+    $("direction").value = 90;
+    $("time").value = 0;
+    $("distance").value = 20;
+
+    rotation = -0.65;
+    tilt = 0.85;
+    zoom = 1;
+
+    calculate();
+}
+
+// Mouse and touch rotation.
+canvas.addEventListener("pointerdown", event => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+});
+
+canvas.addEventListener("pointermove", event => {
+    if (!dragging) return;
+
+    const dx = event.clientX - lastX;
+    const dy = event.clientY - lastY;
+
+    rotation += dx * 0.008;
+    tilt = Math.max(0.15, Math.min(1.45, tilt + dy * 0.005));
+
+    lastX = event.clientX;
+    lastY = event.clientY;
+
+    draw();
+});
+
+canvas.addEventListener("pointerup", () => {
+    dragging = false;
+});
+
+canvas.addEventListener("pointercancel", () => {
+    dragging = false;
+});
+
+canvas.addEventListener("wheel", event => {
+    event.preventDefault();
+    zoom *= event.deltaY < 0 ? 1.1 : 0.9;
+    zoom = Math.max(0.4, Math.min(3, zoom));
+    draw();
+}, { passive: false });
+
+$("calculate").addEventListener("click", calculate);
+$("random").addEventListener("click", randomGenerate);
+$("reset").addEventListener("click", reset);
+
+window.addEventListener("resize", resizeCanvas);
+
+resizeCanvas();
+calculate();
+</script>
+</body>
+</html>
+  draw();
+});
+
+canvas.addEventListener("pointerup", () => {
+    dragging = false;
+});
+
+canvas.addEventListener("pointercancel", () => {
+    dragging = false;
+});
+
+canvas.addEventListener("wheel", event => {
+    event.preventDefault();
+    zoom *= event.deltaY < 0 ? 1.1 : 0.9;
+    zoom = Math.max(0.4, Math.min(3, zoom));
+    draw();
+}, { passive: false });
+
+$("calculate").addEventListener("click", calculate);
+$("random").addEventListener("click", randomGenerate);
+$("reset").addEventListener("click", reset);
+
+window.addEventListener("resize", resizeCanvas);
+
+resizeCanvas();
+calculate();
+</script>
+</body>
+</html>
